@@ -53,7 +53,7 @@ product <- "MOD09A1" #surface spectral reflectance of Terra
 #product <- "MOD13Q1" # NDVI
 
 productInfo(product)
-# --> open it and we have the all description of the dataset
+# --> open it to we have the all description of the dataset
 
 # IMPORTANT:
 # Look for the NDVI layer name in the printed list.
@@ -151,7 +151,7 @@ plot(switzerland_vect, add = TRUE, border = "black", lwd = 1)
 # and contains longitude and latitude columns.
 
 points_vect <- vect(
-  matrix_full_eco,
+  matrix_full_eco_elev_climate_future,
   geom = c("longitude", "latitude"),
   crs = "EPSG:4326"
 )
@@ -161,7 +161,8 @@ points_vect <- project(points_vect, crs(ndvi_switzerland))
 
 # Plot the points on top of the raster
 plot(ndvi_switzerland, main = "Sampling points over NDVI raster")
-plot(points_vect, add = TRUE, col = "red", pch = 16)
+plot(points_vect, add = TRUE, col = "red", pch = 20)
+# --> I put smallest point to better read the map
 
 
 # ==============================================================================
@@ -179,10 +180,10 @@ head(ndvi_values)
 # The first column returned by terra::extract() is usually the point ID
 # and the second column contains the extracted raster value.
 
-matrix_full_eco$NDVI <- ndvi_values[, 2]
+matrix_full_eco_elev_climate_future$NDVI <- ndvi_values[, 2]
 
 # Check the updated table
-head(matrix_full_eco)
+head(matrix_full_eco_elev_climate_future)
 
 
 # ==============================================================================
@@ -192,7 +193,7 @@ head(matrix_full_eco)
 quartz()
 
 
-  ggplot(matrix_full_eco, aes(x = NDVI, fill = Climate_Re)) +
+  ggplot(matrix_full_eco_elev_climate_future, aes(x = NDVI, fill = Climate_Re)) +
   geom_density(alpha = 0.5, adjust = 3) +  # smoothed density curves
   labs(
     title = "NDVI Distribution by Climate",
@@ -200,3 +201,50 @@ quartz()
     y = "Density"
   ) +
   theme_minimal()
+# --> I have a warning message:
+# "Removed 93 rows containing non-finite 
+# outside the scale range (`stat_density()`)."
+# --> I choose to investigation to these 93 rows
+
+dim(matrix_full_eco_elev_climate_future)
+# 3816   32
+
+bad_rows <- matrix_full_eco_elev_climate_future[!is.finite(matrix_full_eco_elev_climate_future$NDVI), ]
+
+head(bad_rows)
+# --> I see there is "NA" in NDVI column
+# --> Question: delete or keep these 93 rows
+
+# Investigation of where the 93 bad rows (which climate)
+table(is.na(matrix_full_eco_elev_climate_future$NDVI),
+      matrix_full_eco_elev_climate_future$Climate_Re)
+# --> All 93 bad rows are in Cool Temperate Moist climate
+# --> However, I have 3600 data in Cool Temperate Moist
+# --> so, it is ok to delete 93 bad rows (small proportion)
+
+# Delete the 93 bad rows
+matrix_full_eco_elev_climate_future_clean <- 
+  matrix_full_eco_elev_climate_future %>%
+  filter(is.finite(NDVI))
+
+# Control
+sum(!is.finite(matrix_full_eco_elev_climate_future_clean$NDVI))
+# 0 --> OK, it's work
+
+# Do the plot again
+ggplot(matrix_full_eco_elev_climate_future_clean, aes(x = NDVI, fill = Climate_Re)) +
+  geom_density(alpha = 0.5, adjust = 3) +  # smoothed density curves
+  labs(
+    title = "NDVI Distribution by Climate",
+    x = "NDVI",
+    y = "Density"
+  ) +
+  theme_minimal()
+# No warning message
+
+# Save the big full final matrix in csv document
+write.csv(
+  matrix_full_eco_elev_climate_future_clean,
+  file = "matrix_full_tip_top.csv",
+  row.names = FALSE
+)

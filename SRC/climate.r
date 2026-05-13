@@ -15,7 +15,7 @@ library(ggplot2)
 # 2) STARTING DATASET
 # =========================
 # We take our dataset with our 2 species of Impatiens
-matrix_full_final
+matrix_full_eco_elev
 
 # =========================
 # 3) CREATE A SPATIAL OBJECT
@@ -24,7 +24,7 @@ matrix_full_final
 # from the longitude and latitude columns.
 
 pts_v <- terra::vect(
-  matrix_full_final,
+  matrix_full_eco_elev,
   geom = c("longitude", "latitude"),
   crs = "EPSG:4326"
 )
@@ -35,13 +35,14 @@ coords_df <- as.data.frame(terra::geom(pts_v)[, c("x", "y")]) %>%
     longitude = x,
     latitude = y
   ) %>%
-  mutate(occurrence_id = matrix_full_final$occurrence_id)
+  mutate(occurrence_id = matrix_full_eco_elev$occurrence_id)
 
 coords_df
 
 # =========================
 # 4) EXTRACT MONTHLY Tmax FOR 2021
 # =========================
+# --> I choose 2021 because it's a the earlier year that works there
 # CHELSA variable naming:
 # - tas    = near-surface air temperature
 # - tasmin = minimum near-surface air temperature
@@ -51,7 +52,7 @@ coords_df
 # Temperature values are often returned in Kelvin.
 # Conversion to Celsius: °C = K - 273.15
 
-coords <- matrix_full_final %>%
+coords <- matrix_full_eco_elev %>%
   dplyr::select(longitude, latitude) %>%
   dplyr::distinct()
 # --> I use distinct() to avoid duplicat
@@ -133,32 +134,32 @@ tmax_df <- tmax_df %>%
 prec_df <- prec_df %>%
   mutate(coord_id = paste0(`occurrence_id.longitude`, "_", `occurrence_id.latitude`))
 
-matrix_full_final <- matrix_full_final %>%
+matrix_full_eco_elev <- matrix_full_eco_elev %>%
   mutate(coord_id = paste0(`longitude`, "_", `latitude`))
 
 
-species_climate_df <- matrix_full_final %>%
+matrix_full_eco_elev_climate <- matrix_full_eco_elev %>%
   left_join(tmax_df, by = "coord_id") %>%
   left_join(prec_df, by = "coord_id")
 
-species_climate_df
+matrix_full_eco_elev_climate
 
 
 # =========================
 # 7) CHECK THE RESULT
 # =========================
 
-dim(matrix_full_final)           # original dimensions
-# 1455    6
-dim(species_climate_df)   # enriched dimensions
-# 1455    12
-names(species_climate_df) # column names after enrichment
+dim(matrix_full_eco_elev)           # original dimensions
+# 1272    18
+dim(matrix_full_eco_elev_climate)   # enriched dimensions
+# 1272    24
+names(matrix_full_eco_elev_climate) # column names after enrichment
 
 # =========================
 # 8) PLOT THE DISTRIBUTION OF ANNUAL MEAN Tmax
 # =========================
 
-ggplot(species_climate_df, aes(x = tmax_mean_c)) +
+ggplot(matrix_full_eco_elev_climate, aes(x = tmax_mean_c)) +
   geom_density(color = "darkred", fill = "salmon", adjust = 1.5) +
   theme_classic() +
   labs(
@@ -171,7 +172,7 @@ ggplot(species_climate_df, aes(x = tmax_mean_c)) +
 # 9) PLOT THE DISTRIBUTION OF ANNUAL MEAN PRECIPITATION
 # =========================
 
-ggplot(species_climate_df, aes(x = prec_mean_annual)) +
+ggplot(matrix_full_eco_elev_climate, aes(x = prec_mean_annual)) +
   geom_density(color = "black", fill = "darkgreen", adjust = 1.5) +
   theme_classic() +
   labs(
@@ -190,6 +191,8 @@ ggplot(species_climate_df, aes(x = prec_mean_annual)) +
 #
 # This is often easier for teaching because the workflow is simpler:
 # one month -> one extraction -> one new column
+
+# --> I choose July because I work with plants and July is their growth pic
 
 # ------------------------------------------------------------
 # 10A) CURRENT CLIMATE: July temperature
@@ -248,36 +251,21 @@ tas_fut_july_df <- tas_fut_july_df %>%
   mutate(coord_id = paste0(`occurrence_id.longitude`, "_", `occurrence_id.latitude`))
 
 
-species_climate_future_df <- species_climate_df %>%
+matrix_full_eco_elev_climate_future <- matrix_full_eco_elev_climate %>%
   left_join(tas_cur_july_df, by = "coord_id") %>%
   left_join(tas_fut_july_df, by = "coord_id") %>%
   mutate(
     delta_tas_july_c = tas_future_july_2050_c - tas_current_july_c
   )
 
-species_climate_future_df
+matrix_full_eco_elev_climate_future
 
-# ------------------------------------------------------------
-# 10C) ADD CURRENT AND FUTURE CLIMATE TO THE TABLE
-# ------------------------------------------------------------
-
-species_climate_future_df <- species_climate_df %>%
-  left_join(tas_cur_df, by = "coord_id") %>%
-  left_join(tas_fut_df, by = "coord_id") %>%
-  mutate(
-    delta_tas_c = tas_future_2050_c - tas_current_c
-  )
-
-## --> Problem: tas_cur_df et tas_fut_df don't exist
-## --> On ne les a pas créé (même dans le doc de base du prof y a pas)
-
-species_climate_future_df
 
 # =========================
 # 11) PLOT CURRENT VS FUTURE TEMPERATURE
 # =========================
 
-ggplot(species_climate_future_df, aes(x = tas_current_july_c, y = tas_future_july_2050_c)) +
+ggplot(matrix_full_eco_elev_climate_future, aes(x = tas_current_july_c, y = tas_future_july_2050_c)) +
   geom_point(size = 3) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
   theme_classic() +
