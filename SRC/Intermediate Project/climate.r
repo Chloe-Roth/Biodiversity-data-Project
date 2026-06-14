@@ -73,8 +73,6 @@ tmax_mat <- tmax_r %>%
   dplyr::select(-time) %>%
   as.matrix()
 
-
-
 # Calculate the mean across the 12 months for each point
 # colMeans() works by column, and here each column corresponds to one point
 tmax_mean_k <- colMeans(tmax_mat, na.rm = TRUE)
@@ -96,7 +94,7 @@ tmax_df
 
 prec_r <- getChelsa(
   var       = "pr",
-  coords    = coords %>% select(longitude, latitude),
+  coords    = coords %>% dplyr::select(longitude, latitude),
   startdate = as.Date("2021-01-01"),
   enddate   = as.Date("2021-12-31"),
   dataset   = "chelsa-monthly"
@@ -104,7 +102,7 @@ prec_r <- getChelsa(
 
 # Remove the time column with dplyr, then convert to matrix
 prec_mat <- prec_r %>%
-  select(-time) %>%
+  dplyr::select(-time) %>%
   as.matrix()
 
 # Calculate the mean across the 12 months for each point
@@ -118,15 +116,47 @@ prec_df <- data.frame(
 
 prec_df
 
+
 # =========================
-# 6) JOIN THE NEW CLIMATE VARIABLES
+# 6) EXTRACT MONTHLY TEMPERATURE FOR 2021
+# =========================
+temp_r <- getChelsa(
+  var       = "tas",
+  coords    = coords %>% dplyr::select(longitude, latitude),
+  startdate = as.Date("2021-01-01"),
+  enddate   = as.Date("2021-12-31"),
+  dataset   = "chelsa-monthly"
+)
+
+# Remove the time column with dplyr, then convert to matrix
+temp_mat <- temp_r %>%
+  dplyr::select(-time) %>%
+  as.matrix()
+
+# Calculate the mean across the 12 months for each point
+temp_mean_k <- colMeans(temp_mat, na.rm = TRUE)
+
+# Convert Kelvin to Celsius
+temp_mean_c <- temp_mean_k - 273.15
+
+# Create a table containing the temperature variable
+temp_df <- data.frame(
+  occurrence_id = coords,
+  temp_mean_c = as.numeric(temp_mean_c)
+)
+
+temp_df
+
+
+# =========================
+# 7) JOIN THE NEW CLIMATE VARIABLES
 #    TO THE ORIGINAL DATASET
 # =========================
 # This is the key teaching point:
 # we start from an existing dataset and add new columns
 # extracted from an external source.
 
-# --> due the use of distinct to delate duplicate
+# --> due the use of distinct to delate duplicate I do this:
 # I must create column that combine longitude and latitude coordinates
 tmax_df <- tmax_df %>%
   mutate(coord_id = paste0(`occurrence_id.longitude`, "_", `occurrence_id.latitude`))
@@ -134,29 +164,44 @@ tmax_df <- tmax_df %>%
 prec_df <- prec_df %>%
   mutate(coord_id = paste0(`occurrence_id.longitude`, "_", `occurrence_id.latitude`))
 
+temp_df <- temp_df %>%
+  mutate(coord_id = paste0(`occurrence_id.longitude`, "_", `occurrence_id.latitude`))
+
 matrix_full_eco_elev <- matrix_full_eco_elev %>%
   mutate(coord_id = paste0(`longitude`, "_", `latitude`))
 
-
 matrix_full_eco_elev_climate <- matrix_full_eco_elev %>%
   left_join(tmax_df, by = "coord_id") %>%
-  left_join(prec_df, by = "coord_id")
+  left_join(prec_df, by = "coord_id") %>%
+  left_join(temp_df, by = "coord_id")
 
 matrix_full_eco_elev_climate
+str(matrix_full_eco_elev_climate)
+# I have several "occurrence_id.longitude" and "occurrence_id.latitude" (with .x or .y)
 
+# Clean the occurrence_id
+matrix_full_eco_elev_climate <- matrix_full_eco_elev_climate %>%
+  dplyr::select(
+    -starts_with("occurrence_id.longitude"),
+    -starts_with("occurrence_id.latitude")
+  )
+
+# Check
+str(matrix_full_eco_elev_climate)
+# OK
 
 # =========================
-# 7) CHECK THE RESULT
+# 8) CHECK THE RESULT
 # =========================
 
 dim(matrix_full_eco_elev)           # original dimensions
-# 1272    18
+# 1264    18
 dim(matrix_full_eco_elev_climate)   # enriched dimensions
-# 1272    24
+# 1264    21
 names(matrix_full_eco_elev_climate) # column names after enrichment
 
 # =========================
-# 8) PLOT THE DISTRIBUTION OF ANNUAL MEAN Tmax
+# 9) PLOT THE DISTRIBUTION OF ANNUAL MEAN Tmax
 # =========================
 
 ggplot(matrix_full_eco_elev_climate, aes(x = tmax_mean_c)) +
@@ -169,7 +214,7 @@ ggplot(matrix_full_eco_elev_climate, aes(x = tmax_mean_c)) +
   )
 
 # =========================
-# 9) PLOT THE DISTRIBUTION OF ANNUAL MEAN PRECIPITATION
+# 10) PLOT THE DISTRIBUTION OF ANNUAL MEAN PRECIPITATION
 # =========================
 
 ggplot(matrix_full_eco_elev_climate, aes(x = prec_mean_annual)) +
@@ -182,8 +227,21 @@ ggplot(matrix_full_eco_elev_climate, aes(x = prec_mean_annual)) +
   )
 
 
+# =========================
+# 11) PLOT THE DISTRIBUTION OF ANNUAL MEAN TEMPERATURE
+# =========================
+quartz()
+ggplot(matrix_full_eco_elev_climate, aes(x = temp_mean_c)) +
+  geom_density(color = "black", fill = "darkgreen", adjust = 1.5) +
+  theme_classic() +
+  labs(
+    title = "Impatiens sp.: annual mean precipitation (2021)",
+    x = "Annual mean temperature",
+    y = "Density"
+  )
 
-# 10)  CURRENT CLIMATE VS FUTURE CLIMATE
+
+# 12)  CURRENT CLIMATE VS FUTURE CLIMATE
 #     SIMPLIFIED EXAMPLE WITH JULY ONLY
 # =========================
 # Here, instead of averaging all 12 months, we extract climate data
@@ -195,13 +253,13 @@ ggplot(matrix_full_eco_elev_climate, aes(x = prec_mean_annual)) +
 # --> I choose July because I work with plants and July is their growth pic
 
 # ------------------------------------------------------------
-# 10A) CURRENT CLIMATE: July temperature
+# 12A) CURRENT CLIMATE: July temperature
 #      climatology over 1981-2010
 # ------------------------------------------------------------
 
 tas_cur_july <- getChelsa(
   var     = "tas",
-  coords  = coords %>% select(longitude, latitude),
+  coords  = coords %>% dplyr::select(longitude, latitude),
   date    = c(7, 1981, 2010),   # July climatology
   dataset = "chelsa-climatologies"
 )
@@ -209,7 +267,7 @@ tas_cur_july <- getChelsa(
 tas_cur_july_df <- data.frame(
   occurrence_id = coords,
   tas_current_july_c = tas_cur_july %>%
-    select(-time) %>%
+    dplyr::select(-time) %>%
     unlist() %>%
     as.numeric() - 273.15
 )
@@ -217,12 +275,12 @@ tas_cur_july_df <- data.frame(
 tas_cur_july_df
 
 # ------------------------------------------------------------
-# 10B) FUTURE CLIMATE: July temperature in 2050 under SSP126
+# 12B) FUTURE CLIMATE: July temperature in 2050 under SSP126
 # ------------------------------------------------------------
 
 tas_fut_july <- getChelsa(
   var     = "tas",
-  coords  = coords %>% select(longitude, latitude),
+  coords  = coords %>% dplyr::select(longitude, latitude),
   date    = as.Date("2050-07-01"),
   dataset = "chelsa-climatologies",
   ssp     = "ssp126",
@@ -232,7 +290,7 @@ tas_fut_july <- getChelsa(
 tas_fut_july_df <- data.frame(
   occurrence_id = coords,
   tas_future_july_2050_c = tas_fut_july %>%
-    select(-time) %>%
+    dplyr::select(-time) %>%
     unlist() %>%
     as.numeric() - 273.15
 )
@@ -240,7 +298,7 @@ tas_fut_july_df <- data.frame(
 tas_fut_july_df
 
 # ------------------------------------------------------------
-# 10C) ADD CURRENT AND FUTURE JULY TEMPERATURE
+# 12C) ADD CURRENT AND FUTURE JULY TEMPERATURE
 #      TO THE ORIGINAL TABLE
 # ------------------------------------------------------------
 
@@ -259,10 +317,11 @@ matrix_full_eco_elev_climate_future <- matrix_full_eco_elev_climate %>%
   )
 
 matrix_full_eco_elev_climate_future
+str(matrix_full_eco_elev_climate_future)
 
 
 # =========================
-# 11) PLOT CURRENT VS FUTURE TEMPERATURE
+# 13) PLOT CURRENT VS FUTURE TEMPERATURE
 # =========================
 
 ggplot(matrix_full_eco_elev_climate_future, aes(x = tas_current_july_c, y = tas_future_july_2050_c)) +

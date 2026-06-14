@@ -8,10 +8,10 @@
 # 1. Load required packages
 # ==============================================================================
 
-install.packages('luna', repos='https://rspatial.r-universe.dev')
-install.packages("remotes")
-remotes::install_github("ropensci/MODIStsp") 
-install.packages("appeears")
+#install.packages('luna', repos='https://rspatial.r-universe.dev')
+#install.packages("remotes")
+#remotes::install_github("ropensci/MODIStsp") 
+#install.packages("appeears")
 
 library(luna)
 library(MODIStsp)
@@ -245,6 +245,6 @@ ggplot(matrix_full_eco_elev_climate_future_clean, aes(x = NDVI, fill = Climate_R
 # Save the big full final matrix in csv document
 write.csv(
   matrix_full_eco_elev_climate_future_clean,
-  file = "matrix_full_tip_top.csv",
+  file = "matrix_full_tip_top_final.csv",
   row.names = FALSE
 )
